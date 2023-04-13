@@ -16,6 +16,9 @@ def setup_state_variables():
     if "order" not in st.session_state:
         st.session_state["order"] = {"products": {}}
 
+    if "order_changed" not in st.session_state:
+        st.session_state["order_changed"] = False
+
 
 def setup_streamlit_app():
 
@@ -64,58 +67,53 @@ def get_products_not_in_order() -> List[Product]:
     return unused_products
 
 
-def update_product(old_product, new_product, amount):
-    print(f"old: {old_product.id}, new: {new_product.id}")
-    del st.session_state["order"]["products"][old_product.id]
-    st.session_state["order"]["products"][new_product.id] = {
-        "product": new_product,
-        "amount": amount}
-
-    print(st.session_state["order"]["products"])
+def get_products_not_in_order_dict() -> dict:
+    possible_products = list(get_products_not_in_order())
+    possible_products_dict = {}
+    for p in possible_products:
+        possible_products_dict[f"{p.name} ({p.id})"] = p
+    return possible_products_dict
 
 
-def update_amount(product, new_amount):
-    products = st.session_state["order"]["products"].copy()
-    products[product.id]["amount"] = new_amount
-    st.session_state["order"]["products"] = products
-    print("new amount: ", new_amount)
-    print("new state: ", st.session_state["order"]["products"])
+def remove_product(product):
+    del st.session_state["order"]["products"][product.id]
+    st.session_state["order_changed"] = True
+
+
+def update_amount(product, key):
+    new_amount = st.session_state[f"number_input_{key}"]
+    p = st.session_state["order"]["products"]
+    st.session_state["order"]["products"][product.id]["amount"] = new_amount
+    st.session_state["order_changed"] = True
+    print(f"new_amount {new_amount}, state {p}")
 
 
 def draw_order_product_editor():
 
     products = st.session_state["order"]["products"].copy()
-    print("draw state: ", st.session_state["order"]["products"])
+    # print("draw state: ", st.session_state["order"]["products"])
 
     for key in products.keys():
         item = products[key]
         product = item["product"]
         amount = item["amount"]
 
-        with st.expander(f"{product.name} ({amount} pieces)", expanded=True):
-            c1, c2 = st.columns([5, 5])
+        c1, c2, c3 = st.columns([5, 4, 2])
 
-            possible_products = list(get_products_not_in_order())
-            possible_products.append(product)
-            possible_products_dict = {}
-            for p in possible_products:
-                possible_products_dict[f"{p.name} ({p.id})"] = p
+        c1.markdown(
+            f"**{product.name}** ({product.id})")
 
-            selected_product = c1.selectbox(
-                key=f"selectbox_{key}",
-                label="change product",
-                index=possible_products.index(product),
-                options=possible_products_dict.keys(),
-                on_change=lambda: update_product(
-                    old_product=product,
-                    new_product=possible_products_dict[selected_product],
-                    amount=amount
-                ))
+        selected_amount = c2.number_input(
+            key=f"number_input_{key}",
+            label="input amount",
+            label_visibility="collapsed",
+            value=1,
+            min_value=1,
+            on_change=lambda: update_amount(product, key))
 
-            selected_amount = c2.number_input(
-                key=f"number_input_{key}",
-                label="change amount",
-                value=amount)
-
-            if (selected_amount != amount):
-                update_amount(product=product, new_amount=selected_amount)
+        c3.button(
+            key=f"delete_button_{key}",
+            label="❌",
+            type="secondary",
+            on_click=lambda: remove_product(product),
+            use_container_width=True)
